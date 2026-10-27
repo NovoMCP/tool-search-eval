@@ -1,0 +1,530 @@
+# Tool Search Eval Set — 58 prompts × expected tools
+#
+# Measures recall@10 on POST /mcp/tool-search against the production endpoint.
+# Ship gate: overall recall@10 ≥ 90%.
+#
+# Structure:
+# - funnel       (17): one per stage of discovery_funnel_interactive, covers
+#                      the load-bearing agent-mode path end-to-end (incl FEP)
+# - compute      (10): Compute-tier sync tools — pKa, solubility, BDE,
+#                      frontier orbitals, redox, excited states, QM, NNP
+# - materials     (5): materials-science workflows (OLED, electrolyte,
+#                      reaction thermo, activation barriers, MP lookups)
+# - tree-retrieval(6): tree-guided chemical space exploration, vector search,
+#                      funnel audit listing
+# - ambiguous    (10): queries where multiple tools are plausible — tests
+#                      whether the index discriminates vs collides
+# - adversarial   (5): paraphrases that should still land on the right tool
+# - negative      (5): queries that should NOT surface any tool strongly
+#
+# `expected` lists tools that MUST appear in the top-10 for the query.
+# `nice_to_have` lists tools that would be reasonable to also surface but
+# don't count against recall if absent. Negative cases use `should_not_surface`
+# to flag tools that, if they appear in top-3, indicate a false-positive
+# routing problem.
+#
+# When a tool description changes materially, re-run this eval and commit
+# the new baseline if recall still passes. See docs/NovoMCP/AGENT-SDK-TOOL-SEARCH.md
+
+version: 3
+endpoint: /mcp/tool-search
+top_k: 10
+ship_gate_recall_at_10: 0.90
+
+#
+# RETIRED 2026-10-27 — four cases removed. predict_clinical_outcomes and
+# run_fep_check are no longer in the catalog: the free-energy path is not in
+# the open release and the clinical-outcome tool was withdrawn. They cannot be
+# retrieved, so scoring them measures the catalog, not the ranker. Removing
+# them moves the denominator from 58 cases to 54. Retired ids:
+#   funnel-stage5p5-clinical-gate, funnel-stage6p5-fep,
+#   funnel-stage6p5-fep-paraphrase, adv-clinical-outcomes-natural
+#
+cases:
+  # ─────────────────────────────────────────────────────────────────────
+  # Funnel stage coverage (15)
+  # ─────────────────────────────────────────────────────────────────────
+  - id: funnel-stage0-prior-runs
+    category: funnel
+    query: "Have we run a discovery funnel for this target before?"
+    expected: [search_prior_runs]
+
+  - id: funnel-stage1-target-discovery
+    category: funnel
+    query: "Find drug targets for non-small cell lung cancer"
+    expected: [target_discovery]
+
+  - id: funnel-stage1-target-discovery-paraphrase
+    category: funnel
+    query: "What genes should I go after for treating lung cancer?"
+    expected: [target_discovery]
+
+  - id: funnel-stage1p5-validate-target
+    category: funnel
+    query: "Validate EGFR as a drug target for NSCLC"
+    expected: [validate_target]
+
+  - id: funnel-stage2-literature
+    category: funnel
+    query: "Find peer-reviewed papers about KRAS inhibitors"
+    expected: [search_literature]
+    nice_to_have: [search_biorxiv]
+
+  - id: funnel-stage2-biorxiv
+    category: funnel
+    query: "Are there any recent preprints on BRAF inhibitor resistance?"
+    expected: [search_biorxiv]
+    nice_to_have: [search_literature]
+
+  - id: funnel-stage2-chembl
+    category: funnel
+    query: "Find ChEMBL bioactivity data for CDK4 inhibitors with IC50 measurements"
+    expected: [search_chembl]
+
+  - id: funnel-stage3-seed-char
+    category: funnel
+    query: "Run ADMET predictions for this molecule"
+    expected: [predict_admet]
+
+  - id: funnel-stage3-compliance
+    category: funnel
+    query: "Is this molecule compliant for pharmaceutical development in the US?"
+    expected: [check_compliance]
+
+  - id: funnel-stage4-lead-opt
+    category: funnel
+    query: "Generate scaffold-hopping variants of this seed molecule"
+    expected: [lead_optimization]
+    nice_to_have: [optimize_molecule]
+
+  - id: funnel-stage4-optimize-molmim
+    category: funnel
+    query: "Optimize this molecule's properties while keeping it structurally similar"
+    expected: [optimize_molecule]
+    nice_to_have: [lead_optimization]
+
+  - id: funnel-stage5-docking
+    category: funnel
+    query: "Dock these three compounds against EGFR and report binding affinities"
+    expected: [dock_molecules]
+    nice_to_have: [get_protein_structure]
+
+  - id: funnel-stage6-md
+    category: funnel
+    query: "Run a molecular dynamics simulation on this protein-ligand complex"
+    expected: [run_molecular_dynamics]
+    nice_to_have: [audit_system]
+
+  - id: funnel-stage7-stratify
+    category: funnel
+    query: "What patient populations will respond to this drug based on pharmacogenomics?"
+    expected: [stratify_patients]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Compute-tier sync tools (10)
+  # ─────────────────────────────────────────────────────────────────────
+  - id: compute-pka
+    category: compute
+    query: "What's the pKa of aspirin?"
+    expected: [predict_pka]
+
+  - id: compute-solubility
+    category: compute
+    query: "Predict aqueous solubility for this compound"
+    expected: [predict_solubility]
+
+  - id: compute-bde
+    category: compute
+    query: "Which bonds in caffeine are most likely to undergo metabolic cleavage?"
+    expected: [predict_bde]
+
+  - id: compute-frontier-orbitals
+    category: compute
+    query: "Compute HOMO and LUMO energies for anthracene"
+    expected: [predict_frontier_orbitals]
+
+  - id: compute-redox
+    category: compute
+    query: "What's the oxidation potential of ethylene carbonate vs Li/Li+?"
+    expected: [predict_redox_potential]
+
+  - id: compute-excited-states
+    category: compute
+    query: "Compute singlet and triplet excited states for pyrene"
+    expected: [run_excited_states]
+    nice_to_have: [predict_frontier_orbitals]
+
+  - id: compute-qm-energy
+    category: compute
+    query: "Run a DFT energy calculation on ethanol with solvent corrections"
+    expected: [run_qm_calculation]
+
+  - id: compute-qm-hessian
+    category: compute
+    query: "Compute vibrational frequencies and confirm this is a true minimum"
+    expected: [run_qm_hessian]
+
+  - id: compute-nnp-energy
+    category: compute
+    query: "Get the single-point energy for benzene using a neural network potential"
+    expected: [compute_energy]
+
+  - id: compute-nnp-optimize
+    category: compute
+    query: "Relax the geometry of cyclohexane using ANI-2x"
+    expected: [optimize_geometry_nnp]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Materials-science workflows (5)
+  # ─────────────────────────────────────────────────────────────────────
+  - id: materials-oled-screen
+    category: materials
+    query: "Screen these candidates for blue OLED emission with good TADF characteristics"
+    expected: [predict_frontier_orbitals, run_excited_states]
+
+  - id: materials-electrolyte-screen
+    category: materials
+    query: "Is this electrolyte stable in a 4.2V Li-ion window?"
+    expected: [predict_redox_potential]
+
+  - id: materials-reaction-thermo
+    category: materials
+    query: "Is this Diels-Alder reaction thermodynamically feasible at 298 K?"
+    expected: [predict_reaction_thermodynamics]
+
+  - id: materials-activation-barrier
+    category: materials
+    query: "What's the activation barrier for HCN to HNC isomerization?"
+    expected: [find_transition_state]
+
+  - id: materials-mp-lookup
+    category: materials
+    query: "Look up band gap and formation energy for material mp-22526"
+    expected: [search_materials_project]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Ambiguous / disambiguation (10)
+  # ─────────────────────────────────────────────────────────────────────
+  - id: ambig-optimize-molecule
+    category: ambiguous
+    query: "Optimize this molecule"
+    expected: [optimize_molecule]
+    nice_to_have: [lead_optimization, optimize_geometry_nnp]
+    # Intent: property-directed compound optimization, NOT geometry relaxation.
+    # Tests the Fix 1 "not property-directed compound optimization" contrast
+    # we wrote into optimize_geometry_nnp (WS0-2).
+
+  - id: ambig-optimize-geometry
+    category: ambiguous
+    query: "Optimize the 3D geometry of this molecule"
+    expected: [optimize_geometry_nnp]
+    nice_to_have: [run_qm_calculation]
+    # Mirror of the above. Tests the other direction of the same contrast.
+
+  - id: ambig-dock-prep
+    category: ambiguous
+    query: "I need to prepare a protein for docking"
+    expected: [get_protein_structure]
+    nice_to_have: [audit_system, dock_molecules]
+
+  - id: ambig-audit-preflight
+    category: ambiguous
+    query: "Can the MD pipeline handle this membrane protein before I spend credits?"
+    expected: [audit_system]
+    nice_to_have: [run_molecular_dynamics]
+
+  - id: ambig-search-clinical-trials
+    category: ambiguous
+    query: "Find clinical trials for EGFR inhibitors in NSCLC"
+    expected: [search_clinical_trials]
+    nice_to_have: [search_literature]
+
+  - id: ambig-search-patents
+    category: ambiguous
+    query: "Are there patents covering this molecule's scaffold?"
+    expected: [search_patents]
+
+  - id: ambig-structure-prediction
+    category: ambiguous
+    query: "Predict the 3D structure for this protein sequence"
+    expected: [predict_structure]
+
+  - id: ambig-conformer-search
+    category: ambiguous
+    query: "Find the low-energy conformers of this flexible molecule"
+    expected: [run_conformer_search]
+
+  - id: ambig-dynamics-alphaflow
+    category: ambiguous
+    query: "Generate a conformational ensemble for this protein without running full MD"
+    expected: [generate_dynamics]
+    nice_to_have: [run_molecular_dynamics]
+
+  - id: ambig-molecule-profile
+    category: ambiguous
+    query: "Give me RDKit properties and drug-likeness for aspirin"
+    expected: [get_molecule_profile]
+    # Post WS1b consolidation this is the canonical lookup. Until then
+    # get_molecule_info or calculate_properties surfacing is acceptable.
+    nice_to_have: [get_molecule_info, calculate_properties]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Tree-guided retrieval + audit (6)
+  # ─────────────────────────────────────────────────────────────────────
+  - id: tree-explore-space
+    category: tree-retrieval
+    query: "Explore chemical space around this KRAS inhibitor scaffold"
+    expected: [explore_chemical_space]
+    nice_to_have: [lead_optimization]
+
+  - id: tree-drill-cluster
+    category: tree-retrieval
+    query: "Drill into the cluster of fluorinated analogs from the exploration"
+    expected: [drill_into_cluster]
+
+  - id: tree-compare-candidates
+    category: tree-retrieval
+    query: "Compare these three lead candidates side by side on ADMET and binding"
+    expected: [compare_candidates]
+
+  - id: tree-vector-search
+    category: tree-retrieval
+    query: "Find molecules structurally similar to this SMILES in the database"
+    expected: [vector_search]
+    nice_to_have: [explore_chemical_space]
+
+  - id: tree-vector-search-paraphrase
+    category: tree-retrieval
+    query: "Search the molecular library for nearest neighbors to erlotinib"
+    expected: [vector_search]
+
+  - id: audit-list-funnels
+    category: tree-retrieval
+    query: "Show me my recent discovery funnels and their outcomes"
+    expected: [list_funnels]
+    nice_to_have: [search_prior_runs]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Adversarial / paraphrased (5)
+  # ─────────────────────────────────────────────────────────────────────
+  - id: adv-compliance-natural
+    category: adversarial
+    query: "Can I use this compound in pharmaceutical research without legal problems?"
+    expected: [check_compliance]
+
+  - id: adv-reaction-feasibility-natural
+    category: adversarial
+    query: "Is this reaction going to happen at room temperature or do I need to heat it?"
+    expected: [predict_reaction_thermodynamics]
+
+  - id: adv-pharmacogenomics-natural
+    category: adversarial
+    query: "Which ancestry groups will metabolize this drug poorly?"
+    expected: [stratify_patients]
+
+  - id: adv-bde-metabolic
+    category: adversarial
+    query: "Where is this molecule most likely to get chewed up by cytochrome P450?"
+    expected: [predict_bde]
+    nice_to_have: [predict_admet]
+    # Tests whether semantic search catches "metabolic soft spot" phrasing
+    # via the BDE tool's description, not just literal "bond dissociation".
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Negative cases (5) — should NOT strongly surface any tool
+  # ─────────────────────────────────────────────────────────────────────
+  - id: neg-weather
+    category: negative
+    query: "What's the weather in San Francisco?"
+    expected: []
+    should_not_surface_in_top3: [target_discovery, dock_molecules, predict_admet,
+                                  check_compliance, run_molecular_dynamics]
+
+  - id: neg-general-chat
+    category: negative
+    query: "Hello, how are you today?"
+    expected: []
+    should_not_surface_in_top3: [target_discovery, dock_molecules, predict_admet]
+
+  - id: neg-credit-check
+    category: negative
+    query: "How many credits do I have left?"
+    expected: [get_credit_usage]
+    # Not truly negative — core whitelist covers this. Exists to validate
+    # that the whitelist is doing its job.
+
+  - id: neg-platform-info
+    category: negative
+    query: "What can this platform do?"
+    expected: [get_platform_info]
+    # Same rationale as above.
+
+  - id: neg-unrelated-science
+    category: negative
+    query: "Explain the theory of relativity"
+    expected: []
+    should_not_surface_in_top3: [predict_frontier_orbitals, run_qm_calculation,
+                                  run_excited_states, find_transition_state]
+    # Physics-adjacent but not chemistry. Should not trigger QM tools.
+  # ─────────────────────────────────────────────────────────────────────
+  # Negative cases added 2026-10-27 (25). Written against the tool
+  # catalog and plausible user intent, before any ranker was run on them.
+  # No whitelisted tool appears in should_not_surface_in_top3: the
+  # whitelist returns regardless of query, so listing one guarantees a
+  # failure that says nothing about retrieval.
+  # ─────────────────────────────────────────────────────────────────────
+
+  # -- unrelated domain ------------------------------------------------
+  - id: neg2-weather-forecast
+    category: negative
+    query: "What's the weather going to be like in Rochester tomorrow?"
+    expected: []
+    should_not_surface_in_top3: [predict_solubility, search_chembl, calculate_properties]
+
+  - id: neg2-sports
+    category: negative
+    query: "Who won the World Cup in 2022?"
+    expected: []
+    should_not_surface_in_top3: [search_literature, search_patents, search_biorxiv]
+
+  - id: neg2-cooking
+    category: negative
+    query: "How do I make a sourdough starter from scratch?"
+    expected: []
+    should_not_surface_in_top3: [run_materials_ag, predict_solubility, screen_library]
+
+  - id: neg2-travel
+    category: negative
+    query: "Book me a flight to Boston next Tuesday"
+    expected: []
+    should_not_surface_in_top3: [generate_upload_url, push_to_destination, pull_from_source]
+
+  # -- adjacent science, knowledge rather than action ------------------
+  - id: neg2-explain-benzene
+    category: negative
+    query: "What is a benzene ring?"
+    expected: []
+    should_not_surface_in_top3: [calculate_properties, get_molecule_info, run_qm_calculation]
+
+  - id: neg2-explain-logp
+    category: negative
+    query: "What does logP actually mean in drug design?"
+    expected: []
+    should_not_surface_in_top3: [calculate_properties, predict_solubility, get_molecule_profile]
+
+  - id: neg2-explain-cyp
+    category: negative
+    query: "Explain how CYP450 enzymes metabolize drugs"
+    expected: []
+    should_not_surface_in_top3: [predict_admet, predict_bde, analyze_admet_trajectory]
+
+  - id: neg2-explain-folding
+    category: negative
+    query: "Why do proteins fold into specific shapes?"
+    expected: []
+    should_not_surface_in_top3: [predict_structure, run_molecular_dynamics, get_protein_structure]
+
+  - id: neg2-history-penicillin
+    category: negative
+    query: "Who discovered penicillin, and in what year?"
+    expected: []
+    should_not_surface_in_top3: [search_literature, search_chembl, search_patents]
+
+  - id: neg2-explain-docking-concept
+    category: negative
+    query: "What is molecular docking, conceptually?"
+    expected: []
+    should_not_surface_in_top3: [dock_molecules, dock_with_strain]
+
+  # -- plausible asks the engine genuinely cannot do -------------------
+  - id: neg2-antibody-design
+    category: negative
+    query: "Design an antibody against PD-L1"
+    expected: []
+    should_not_surface_in_top3: [predict_structure, lead_optimization, optimize_molecule]
+
+  - id: neg2-peptide-optimize
+    category: negative
+    query: "Optimize this peptide sequence for serum stability"
+    expected: []
+    should_not_surface_in_top3: [optimize_molecule, lead_optimization, predict_structure]
+
+  - id: neg2-synthesize
+    category: negative
+    query: "Synthesize this compound in the lab and send me the product"
+    expected: []
+    should_not_surface_in_top3: [lead_optimization, predict_reaction_thermodynamics, optimize_molecule]
+
+  - id: neg2-order-compounds
+    category: negative
+    query: "Order these five compounds from a commercial supplier"
+    expected: []
+    should_not_surface_in_top3: [search_chembl, screen_library, filter_molecules]
+
+  - id: neg2-crispr-guide
+    category: negative
+    query: "Design a CRISPR guide RNA targeting TP53"
+    expected: []
+    should_not_surface_in_top3: [validate_target, target_discovery, predict_structure]
+
+  - id: neg2-enroll-trial
+    category: negative
+    query: "Enroll these patients in a Phase II trial"
+    expected: []
+    should_not_surface_in_top3: [stratify_patients, search_clinical_trials]
+
+  # -- social and meta -------------------------------------------------
+  - id: neg2-greeting
+    category: negative
+    query: "Hi there"
+    expected: []
+    should_not_surface_in_top3: [get_molecule_info, search_literature, dock_molecules]
+
+  - id: neg2-thanks
+    category: negative
+    query: "Thanks, that's really helpful"
+    expected: []
+    should_not_surface_in_top3: [lead_optimization, optimize_molecule, screen_library]
+
+  - id: neg2-vague-capability
+    category: negative
+    query: "What kinds of things can you help with?"
+    expected: []
+    should_not_surface_in_top3: [dock_molecules, run_molecular_dynamics, run_qm_calculation]
+
+  - id: neg2-who-built
+    category: negative
+    query: "Who built this system and what is it written in?"
+    expected: []
+    should_not_surface_in_top3: [target_discovery, search_literature, search_patents]
+
+  # -- out-of-scope biology and clinical -------------------------------
+  - id: neg2-genome-assembly
+    category: negative
+    query: "Assemble this bacterial genome from raw sequencing reads"
+    expected: []
+    should_not_surface_in_top3: [target_discovery, validate_target, predict_structure]
+
+  - id: neg2-diagnose
+    category: negative
+    query: "What disease does this patient have, based on these symptoms?"
+    expected: []
+    should_not_surface_in_top3: [stratify_patients, search_clinical_trials, validate_target]
+
+  - id: neg2-dosing-advice
+    category: negative
+    query: "What dose of ibuprofen should I take for a headache?"
+    expected: []
+    should_not_surface_in_top3: [predict_admet, get_molecule_profile, calculate_properties]
+
+  - id: neg2-rnaseq
+    category: negative
+    query: "Run differential expression analysis on this RNA-seq dataset"
+    expected: []
+    should_not_surface_in_top3: [target_discovery, stratify_patients]
+
+  - id: neg2-epidemiology
+    category: negative
+    query: "What is the prevalence of lung cancer across Europe?"
+    expected: []
+    should_not_surface_in_top3: [search_clinical_trials, target_discovery, search_literature]

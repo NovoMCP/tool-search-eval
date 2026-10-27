@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-27",
+  "eval_set_sha256": "3097a7d2ea17222b3bfbad5a13c2abe170d9b97b85c6e045796d2c6e8514b6f0",
+  "cases": 79, "dev": 40, "test": 39,
+  "engine_commit": "36c968c",
+  "catalog_tools": 69,
+  "embedding": {"provider": "cohere", "model": "embed-english-v3.0", "dimensions": 1024},
+  "index": {"size_kb": 276, "build_seconds": 4.55},
+  "hardware": "Apple M3, arm64, macOS 26.7.1",
+  "selected_on_dev": {"embedding_weight": 1, "abstention_threshold": 0.30,
+                      "note": "threshold at grid edge; widen on dev with a fresh test split"},
+  "test": {
+    "keyword":           {"recall": 0.960, "hits": 24, "expected": 25, "negatives_passed": 12, "negatives": 15},
+    "semantic":          {"recall": 1.000, "hits": 25, "expected": 25, "negatives_passed":  7, "negatives": 15},
+    "hybrid_unweighted": {"recall": 1.000, "hits": 25, "expected": 25, "negatives_passed":  9, "negatives": 15},
+    "hybrid_tuned":      {"recall": 1.000, "hits": 25, "expected": 25, "negatives_passed": 10, "negatives": 15}
+  },
+  "test_negative_false_positives": {
+    "neg2-crispr-guide":       ["predict_structure"],
+    "neg2-explain-cyp":        ["predict_admet", "predict_bde"],
+    "neg2-explain-folding":    ["get_protein_structure", "predict_structure", "run_molecular_dynamics"],
+    "neg2-genome-assembly":    ["target_discovery"],
+    "neg2-peptide-optimize":   ["lead_optimization", "optimize_molecule"]
+  },
+  "finding": "Recall is solved across every semantic variant. Abstention is not: the best configuration still surfaces tools for a third of queries that should return nothing."
+}

@@ -1,0 +1,23 @@
+name: tool-search eval
+
+# Keyword mode needs no credentials, so it gates every change for free.
+# Semantic mode runs only when an embedding key is present in secrets.
+on:
+  push: {branches: [main]}
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  keyword:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {repository: NovoMCP/novomcp, path: engine}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -r requirements.txt
+      - name: keyword-mode regression
+        run: python run_eval_local.py eval-set.yaml
+        env:
+          NOVOMCP_SRC: ${{ github.workspace }}/engine/orchestrator/src
