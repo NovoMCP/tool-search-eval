@@ -6,11 +6,11 @@ running server. The HTTP route at /mcp/tool-search is a thin wrapper over
 this same function, so the ranking path measured is identical; what is
 skipped is the network hop, which is why this reports recall and not latency.
 """
-import asyncio, json, sys
+import asyncio, json, os, sys
 from collections import defaultdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / "dev/novomcp/orchestrator/src"))
+sys.path.insert(0, os.environ.get("NOVOMCP_SRC", str(Path.home() / "dev/novomcp/orchestrator/src")))
 import yaml
 from novomcp.mcp import tool_search as ts
 
@@ -76,5 +76,13 @@ async def main(path):
 
 
 if __name__ == "__main__":
-    p = sys.argv[1] if len(sys.argv) > 1 else "eval-set-v2.yaml"
-    asyncio.run(main(p))
+    p = sys.argv[1] if len(sys.argv) > 1 else "eval-set.yaml"
+    gate = float(yaml.safe_load(open(p)).get("ship_gate_recall_at_10") or 0.0)
+    recall = asyncio.run(main(p))
+    # The gate is recall only. Abstention is reported above and deliberately
+    # not gated: keyword mode passes most negatives by coincidence, and a
+    # threshold on a coincidence is not a regression test.
+    if recall < gate:
+        print(f"\nGATE FAIL: recall@10 {recall:.1%} is below the declared {gate:.0%}")
+        sys.exit(1)
+    print(f"\nGATE PASS: recall@10 {recall:.1%} at or above the declared {gate:.0%}")

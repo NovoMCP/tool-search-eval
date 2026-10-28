@@ -1,7 +1,8 @@
 name: tool-search eval
 
 # Keyword mode needs no credentials, so it gates every change for free.
-# Semantic mode runs only when an embedding key is present in secrets.
+# The engine is pinned to the commit the published numbers were measured
+# against; a floating ref would turn this gate into a catalog drift alarm.
 on:
   push: {branches: [main]}
   pull_request:
@@ -11,12 +12,20 @@ jobs:
   keyword:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with: {repository: NovoMCP/novomcp, path: engine}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
-      - run: pip install -r requirements.txt
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: NovoMCP/novomcp
+          ref: 36c968c17a6455ee2e0ab5aa923eef7c9b9b5255
+          path: engine
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: install engine and harness dependencies
+        run: |
+          pip install -r engine/orchestrator/requirements.txt
+          pip install -r requirements.txt
       - name: keyword-mode regression
         run: python run_eval_local.py eval-set.yaml
         env:

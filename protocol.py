@@ -14,10 +14,10 @@ PROTOCOL, fixed before any result was seen:
 Query embeddings are computed once and cached so that configs are compared
 on identical vectors.
 """
-import asyncio, sys, json, hashlib
+import asyncio, os, sys, json, hashlib
 from collections import defaultdict
 from pathlib import Path
-sys.path.insert(0, str(Path.home() / "dev/novomcp/orchestrator/src"))
+sys.path.insert(0, os.environ.get("NOVOMCP_SRC", str(Path.home() / "dev/novomcp/orchestrator/src")))
 import yaml, numpy as np
 from novomcp.mcp import tool_search as ts
 

@@ -97,7 +97,17 @@ same function, so the ranking measured is identical; what is skipped is the
 network hop. `run_eval_http.py` is the original harness and hits a running
 server instead — use it when latency is what you want to measure, not recall.
 
-The scripts expect the engine source at `~/dev/novomcp/orchestrator/src`.
+The scripts expect the engine source at `~/dev/novomcp/orchestrator/src`. Set
+`NOVOMCP_SRC` to point them somewhere else — at a checkout of
+[NovoMCP/novomcp](https://github.com/NovoMCP/novomcp), which is what CI does.
+The engine's own dependencies have to be installed too (`pip install -r
+orchestrator/requirements.txt` from that checkout); `requirements.txt` here
+covers only the harness.
+
+Keyword mode is the regression gate, and it fails the build when recall@10
+drops below the `ship_gate_recall_at_10` declared in the eval set. Abstention
+is printed but not gated: keyword mode passes most negatives by coincidence,
+and a threshold on a coincidence is not a regression test.
 
 ## What is not measured here
 
